@@ -1,0 +1,8 @@
+# The platform is deployed on Linux: keep LF in the repository and working tree,
+# whatever the Windows git setting (core.autocrlf) says.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ttf binary

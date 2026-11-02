@@ -1,0 +1,31 @@
+# Faqat LOKAL TEST uchun — production bare-metal (systemd) orqali
+# deploy qilinadi, qarang: docs/SERVER.md, docs/DEPLOY.md. Bu fayl
+# production deploy jarayoniga umuman aloqasi yo'q.
+#
+# Maqsad: WeasyPrint (va uning tizim kutubxonalari — libpango/libcairo)
+# Windows'da to'g'ridan-to'g'ri ishlamaydi. Bu image production
+# serverdagi bilan bir xil Linux + apt paketlarni beradi, shuning uchun
+# ruxsatnoma/javob varag'i PDF generatsiyasini deploy qilishdan OLDIN
+# shu yerda tekshirish mumkin.
+#
+# Qurish (loyihaning shu papkasida, bir marta — keyin qayta kerak
+# emas, faqat requirements.txt o'zgarsa qayta quriladi):
+#   docker build -f Dockerfile.localtest -t smartbot-localtest .
+#
+# Ishlatish — kod shu papkadan LIVE ulanadi (volume), qayta qurish
+# kerak emas, kodni tahrirlab darhol qayta sinab ko'rasiz:
+#   docker run --rm -v "%cd%":/app -w /app -e QR_SECRET=lokal-sinov-kaliti smartbot-localtest python scripts/localtest_pdf.py
+#
+# PowerShell'da "%cd%" o'rniga "${PWD}" ishlating.
+
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpango-1.0-0 libpangoft2-1.0-0 libcairo2 poppler-utils fonts-noto \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+CMD ["python", "--version"]

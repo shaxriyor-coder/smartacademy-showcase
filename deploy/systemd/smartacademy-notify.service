@@ -1,0 +1,24 @@
+# /etc/systemd/system/smartacademy-notify.service — docs/DEPLOY.md, 11-qadam.
+# Telegram xabarlari va hisobotlari: FAQAT YUBORADI. Botning xabarlarini smartbot
+# (testbot.service) qabul qiladi — bu yerda getUpdates ishlatilsa smartbot
+# xabarlarni yo'qotadi (docs/DECISIONS.md #23). Shuning uchun --no-poll VA BOT_POLLING=off.
+[Unit]
+Description=SmartAcademy Telegram xabarlari (faqat yuborish)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=smartacademy
+Group=smartacademy
+WorkingDirectory=/opt/smartacademy
+EnvironmentFile=/opt/smartacademy/.env
+Environment=NODE_ENV=production
+Environment=BOT_POLLING=off
+ExecStart=/usr/bin/node node_modules/tsx/dist/cli.mjs scripts/telegram-bot.ts --no-poll
+Restart=always
+RestartSec=10
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

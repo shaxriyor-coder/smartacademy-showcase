@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light">
+<title>Olimpiadaga kirish ruxsatnomasi</title>
+<style>
+  /*
+   * Kirish ruxsatnomasi (A4) — qabul qilishda, rasm yuklangandan keyin
+   * qabulxonaga yuboriladi (services/ticket_service.py -> generate_entry_pass,
+   * DECISIONS.md #39). Ro'yxatdan o'tgandagi A5 ruxsatnoma — ruxsatnoma.html.
+   *
+   * Shrift fayldan (@font-face) olinadi: tizim shriftiga tayansa lokal
+   * (Windows) va serverdagi ko'rinish farq qiladi (DECISIONS.md #36).
+   * r.* maydonlar — har ishtirokchida boshqacha; qolgan hamma narsa o'zgarmas.
+   * DIQQAT: bu fayl Jinja shabloni — izohda ham qo'sh jingalak qavs yozmang.
+   */
+  @font-face { font-family: "Pass"; src: url(../fonts/DejaVuSans.ttf); font-weight: 400; }
+  @font-face { font-family: "Pass"; src: url(../fonts/DejaVuSans-Bold.ttf); font-weight: 700; }
+  @page { size: A4 portrait; margin: 8mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; font-family: "Pass", sans-serif; color: #1C1440; font-size: 3mm; }
+
+  /* 281mm = A4 (297mm) - 2*8mm. Oshsa ruxsatnoma ikkinchi sahifaga tushadi. */
+  .sheet { position: relative; height: 281mm; border: 0.35mm solid #3B00B4; padding: 7mm 9mm 5mm; display: flex; flex-direction: column; overflow: hidden; }
+  .inner-line { position: absolute; top: 1.6mm; left: 1.6mm; right: 1.6mm; bottom: 1.6mm; border: 0.2mm solid #E4B94E; }
+  .watermark { position: absolute; top: 118mm; left: -20mm; width: 240mm; text-align: center; font-size: 26mm; font-weight: 700; letter-spacing: 3mm; color: #3B00B4; opacity: .035; transform: rotate(-38deg); }
+  /* WeasyPrint `margin-top: auto` ni flex ustunda bajarmaydi — bo'sh joyni shu oladi. */
+  .grow { flex: 1 1 auto; }
+
+  .head { display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 3.5mm; }
+  .brand img { width: 17mm; height: 17mm; border-radius: 2mm; }
+  .brand-name { font-size: 6mm; font-weight: 700; letter-spacing: .08em; color: #3B00B4; line-height: 1; }
+  .brand-sub { font-size: 3mm; color: #6b6690; margin-top: 1.2mm; letter-spacing: .12em; text-transform: uppercase; }
+  .idbox { text-align: right; }
+  .lbl { font-size: 2.3mm; letter-spacing: .12em; text-transform: uppercase; color: #8A80B5; }
+  .idbox .lbl { color: #C28F1E; font-weight: 700; }
+  .idbox .id { font-size: 5mm; font-weight: 700; color: #3B00B4; margin-top: .8mm; }
+  .rule { height: .7mm; background: #3B00B4; margin: 4mm 0 0; }
+  .rule-gold { height: .35mm; width: 60mm; background: #E4B94E; margin-top: .8mm; }
+
+  h1 { margin: 6mm 0 0; text-align: center; font-size: 7.4mm; letter-spacing: .02em; color: #3B00B4; }
+  .event { margin: 1.5mm 0 0; text-align: center; font-size: 4.6mm; color: #2A2160; overflow-wrap: anywhere; }
+
+  .section { display: flex; align-items: center; gap: 2mm; margin: 6mm 0 2mm; font-size: 2.6mm; font-weight: 700; letter-spacing: .2em; color: #3B00B4; }
+  .section .dia { width: 1.8mm; height: 1.8mm; background: #E4B94E; transform: rotate(45deg); }
+  .section .line { flex: 1; height: .2mm; background: #DCD5EE; }
+
+  .body { display: flex; gap: 7mm; margin-top: 1mm; }
+  .left { flex: 1; min-width: 0; }
+  .right { width: 42mm; flex-shrink: 0; display: flex; flex-direction: column; gap: 5mm; padding-top: 8mm; }
+
+  .field { padding: 1.6mm 0 1.8mm; border-bottom: .25mm solid #E6E1F2; }
+  .val { font-size: 3.7mm; font-weight: 700; margin-top: .6mm; overflow-wrap: anywhere; }
+  .val.big { font-size: 4.6mm; letter-spacing: .01em; }
+  .val.accent { color: #3B00B4; }
+  .note { font-size: 2.9mm; color: #6b6690; margin-top: .6mm; }
+  .row { display: flex; gap: 6mm; }
+  .row .field { flex: 1; min-width: 0; }
+
+  .photo { width: 42mm; height: 56mm; background-size: cover; background-position: center; border: .3mm solid #CFC6E8; }
+  .qr { border: .3mm solid #CFC6E8; padding: 2.5mm; text-align: center; }
+  .qr img { width: 35mm; height: 35mm; display: block; margin: 0 auto; }
+  .qr .qr-id { font-size: 2.4mm; color: #6b6690; margin-top: 1mm; }
+
+  .slots { display: flex; border: .45mm solid #3B00B4; margin-top: 4mm; background: #FAF8FE; }
+  .slots > div { flex: 1; padding: 2.2mm 3mm 2.4mm; border-left: .25mm solid #DCD5EE; }
+  .slots > div:first-child { border-left: 0; }
+  .slots .v { font-size: 6.2mm; font-weight: 700; color: #3B00B4; margin-top: .6mm; white-space: nowrap; }
+  .slots .v.slot-sm { font-size: 4.6mm; white-space: normal; }
+  .slots .v.room { font-size: 8mm; }
+
+  .alert { display: flex; align-items: center; gap: 4mm; margin-top: 7mm; background: #3B00B4; color: white; border-radius: 2mm; padding: 3.2mm 5mm; font-size: 3.6mm; border-left: 1.6mm solid #E4B94E; }
+  .alert .ic { width: 6.5mm; height: 6.5mm; border: .4mm solid #E4B94E; border-radius: 50%; text-align: center; line-height: 6mm; color: #E4B94E; font-weight: 700; flex-shrink: 0; }
+  .alert b { color: #F4CC6A; }
+
+  .bottom { display: flex; gap: 6mm; margin-top: 6mm; }
+  .rules { flex: 1.35; }
+  .parents { flex: 1; background: #F6F3FC; border: .25mm solid #E3DCF3; border-radius: 1.5mm; padding: 3mm 4mm; align-self: flex-start; }
+  .h { font-size: 2.8mm; font-weight: 700; letter-spacing: .12em; color: #3B00B4; padding-bottom: 1mm; border-bottom: .35mm solid #E4B94E; display: inline-block; }
+  ul { margin: 2.5mm 0 0; padding: 0; list-style: none; }
+  li { position: relative; padding-left: 4mm; margin-bottom: 1.8mm; font-size: 2.85mm; line-height: 1.45; color: #3B3563; }
+  li::before { content: ""; position: absolute; left: .4mm; top: 1.4mm; width: 1.4mm; height: 1.4mm; background: #E4B94E; transform: rotate(45deg); }
+  .parents p { margin: 2.5mm 0 1.5mm; font-size: 2.85mm; color: #6b6690; line-height: 1.4; }
+  .parents li { font-weight: 700; color: #1C1440; }
+
+  .foot { display: flex; justify-content: space-between; align-items: flex-end; border-top: .25mm solid #E6E1F2; padding-top: 3mm; font-size: 2.8mm; color: #6b6690; }
+  .sign { width: 62mm; border-bottom: .3mm solid #9C93C4; height: 7mm; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="inner-line"></div>
+  <div class="watermark">SMART ACADEMY</div>
+
+  <div class="head">
+    <div class="brand">
+      <img src="logo_brend.png" alt="Smart Academy">
+      <div>
+        <div class="brand-name">SMART ACADEMY</div>
+        <div class="brand-sub">o'quv markazi</div>
+      </div>
+    </div>
+    <div class="idbox">
+      <div class="lbl">Ishtirokchi ID</div>
+      <div class="id">{{ r.ticket_no }}</div>
+    </div>
+  </div>
+  <div class="rule"></div>
+  <div class="rule-gold"></div>
+
+  <h1>OLIMPIADAGA KIRISH RUXSATNOMASI</h1>
+  <p class="event">{{ r.event_title }}</p>
+
+  <div class="body">
+    <div class="left">
+      <div class="section"><span class="dia"></span>ISHTIROKCHI MA'LUMOTLARI<span class="line"></span></div>
+      <div class="field"><div class="lbl">Familiya, ism</div><div class="val big">{{ r.familiya }} {{ r.ism }}</div></div>
+      <div class="row">
+        <div class="field"><div class="lbl">Tug'ilgan sanasi</div><div class="val">{{ r.birth_date }}</div></div>
+        <div class="field"><div class="lbl">Sinf</div><div class="val">{{ r.grade }}</div></div>
+      </div>
+      <div class="field"><div class="lbl">Maktab</div><div class="val">{{ r.school }}</div></div>
+      <div class="row">
+        <div class="field"><div class="lbl">O'qituvchi</div><div class="val">{{ r.teacher }}</div></div>
+        <div class="field"><div class="lbl">Telefon</div><div class="val">{{ r.phone }}</div></div>
+      </div>
+
+      <div class="section"><span class="dia"></span>OLIMPIADA TAFSILOTLARI<span class="line"></span></div>
+      <div class="field"><div class="lbl">O'tkaziladigan joy</div><div class="val accent">Smart Academy o'quv markazi</div></div>
+      <div class="field"><div class="lbl">Manzil</div><div class="val accent">Asaka tuman, Asaka shaxar</div><div class="note">Mo'ljal: Dexqon bozori oldida, korzinkadan 50+ metr zavot tomonga</div></div>
+
+      <div class="slots">
+        <div><div class="lbl">Sana</div><div class="v">{{ r.exam_date }}</div></div>
+        <div><div class="lbl">Vaqt</div><div class="v {{ r.slot_size_class }}">{{ r.slot_label }}</div></div>
+        <div style="flex: .6"><div class="lbl">Xona</div><div class="v room">{{ r.room_number }}</div></div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="photo" style="background-image: url('{{ r.photo_data_uri }}')"></div>
+      <div class="qr">
+        <img src="{{ r.qr_data_uri }}" alt="QR">
+        <div class="qr-id">Qabulda skanerlanadi</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert">
+    <div class="ic">!</div>
+    <div>Diqqat! Olimpiada boshlanishidan kamida <b>30 daqiqa oldin</b> Smart Academyga yetib keling.</div>
+  </div>
+
+  <div class="bottom">
+    <div class="rules">
+      <div class="h">ESLATMA</div>
+      <ul>
+        <li>Ishtirokchi ushbu ruxsatnoma bilan (chop etilgan yoki telefonda) kelishi shart.</li>
+        <li>Ruxsatnomadagi rasm ishtirokchining o'ziga mos kelmasa, xonaga kiritilmaydi.</li>
+        <li>Kechikkan ishtirokchi uchun olimpiada qayta o'tkazilmaydi.</li>
+        <li>Telefon, smart soat, kalkulyator va shpargalkadan foydalanish, boshqalardan ko'chirish chetlashtirishga asos bo'ladi.</li>
+      </ul>
+    </div>
+    <div class="parents">
+      <div class="h">OTA-ONALAR DIQQATIGA</div>
+      <p>Farzandingiz o'zi bilan olib kelishi kerak:</p>
+      <ul>
+        <li>Ushbu ruxsatnoma</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot">
+    <div>Qabul qilindi: {{ r.issued_at }}</div>
+    <div style="text-align: center"><div class="sign"></div>Qabul qilgan xodim imzosi</div>
+  </div>
+</div>
+</body>
+</html>

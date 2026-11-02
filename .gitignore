@@ -1,0 +1,87 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+Thumbs.db
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+.do_token
+*.log
+*.tmp
+*.swp
+
+# Local editor and assistant configuration
+.claude/
+.vscode/
+.idea/
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# python (checker/)
+__pycache__/
+*.pyc
+.venv/
+# checker/scripts/ocr_sample.py natijasi
+ocr-out/
+/checker/ocr-out/
+
+# Local databases, backups, exports, and private data
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+*.sql.gz
+*.tar.gz
+*.zip
+*.pdf
+*.xls
+*.xlsx
+*.csv
+/backups/
+/exports/
+/scans/
+/private-data/
+/data/private/
+
+# vercel
+.vercel
+
+# uploaded files
+/public/uploads/
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts

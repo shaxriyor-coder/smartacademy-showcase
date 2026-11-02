@@ -1,0 +1,19 @@
+# /etc/systemd/system/smartacademy-checker.service — docs/DEPLOY.md, 11-qadam.
+# Javob varag'i va skan tekshiruvi (checker/). Faqat 127.0.0.1:8090, CHECKER_TOKEN bilan.
+[Unit]
+Description=SmartAcademy javob varag'i / OMR servisi
+After=network.target
+
+[Service]
+Type=simple
+User=smartacademy
+Group=smartacademy
+WorkingDirectory=/opt/smartacademy/checker
+ExecStart=/opt/smartacademy/checker/.venv/bin/python server.py
+Restart=always
+RestartSec=5
+# PDF -> rasm -> OpenCV paytida xotira ko'tariladi (smartbot'da ~350 MB).
+MemoryMax=700M
+
+[Install]
+WantedBy=multi-user.target

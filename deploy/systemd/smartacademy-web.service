@@ -1,0 +1,24 @@
+# /etc/systemd/system/smartacademy-web.service — docs/DEPLOY.md, 11-qadam.
+# Sayt faqat localhost'da tinglaydi; tashqaridan nginx orqali (HTTPS).
+[Unit]
+Description=SmartAcademy platforma (Next.js)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=smartacademy
+Group=smartacademy
+WorkingDirectory=/opt/smartacademy
+EnvironmentFile=/opt/smartacademy/.env
+Environment=NODE_ENV=production
+# Heap MemoryMax'dan past: Node systemd o'ldirishidan oldin xotirani tozalaydi.
+Environment=NODE_OPTIONS=--max-old-space-size=512
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
+Restart=always
+RestartSec=5
+# smartbot'dagi kabi: xotira oshsa faqat shu xizmat qayta ishga tushadi, server tirik qoladi.
+MemoryMax=700M
+
+[Install]
+WantedBy=multi-user.target

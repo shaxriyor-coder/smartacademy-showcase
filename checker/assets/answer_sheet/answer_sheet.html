@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light">
+<title>Javob varag'i (bo'sh shablon)</title>
+<style>
+  /*
+   * Bu shablon FAQAT BO'SH SHABLON chiqaradi — bitta olimpiada uchun bir
+   * marta PDF qilinadi va bazada saqlanadi (AnswerSheet.blank_pdf).
+   * Ishtirokchining ismi/familiyasi/sanasi/sinfi va QR kodi bu yerda
+   * chizilmaydi: ular keyin PyMuPDF bilan tayyor sahifa USTIGA
+   * "shtamplanadi" (qarang: services/answer_sheet_service.py ->
+   * stamp_answer_sheets_pdf, DECISIONS.md #27).
+   *
+   * Shu sababli maydonlar ichida @X@ ko'rinishidagi ORIENTIR matnlar
+   * turadi: ular OQ rangda (ko'rinmaydi), lekin PDF matn qatlamida
+   * qoladi — PyMuPDF `search_for` bilan aynan shu joylarni topib, haqiqiy
+   * qiymatni o'sha yerga yozadi. Ularni o'chirmang yoki o'zgartirmang.
+   */
+  @page {
+    size: A4 portrait;
+    margin: 9mm;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    font-family: 'Noto Sans', sans-serif;
+    color: #111;
+    font-size: 10px;
+  }
+  .sheet {
+    display: flex;
+    flex-direction: column;
+    min-height: 279mm; /* A4 297mm - 2*9mm @page margin */
+    position: relative;
+  }
+
+  /* Burchak markerlari (fiducial) — skaner/telefon rasmidagi qiyalik va
+     perspektivani shularga qarab to'g'rilaydi. ArUco: har biri o'z
+     ID'sini tashiydi, shuning uchun varaq teskari qo'yilsa ham qaysi
+     burchak ekani aniq (qarang: services/answer_sheet_service.py ->
+     ARUCO_CORNER_IDS). O'lchamini o'zgartirmang — tekshiruvchi dastur
+     markerni 7mm deb qidiradi. */
+  /* SOKIN ZONA (quiet zone) — marker atrofidagi 1.6mm oq hoshiya.
+     ArUco markerni ALOHIDA turgan qora kvadrat sifatida ko'rishi kerak.
+     Belgilash zonasining 1.4mm qalin ramkasi markerga tegib ketsa,
+     ikkalasi bitta qora konturga qo'shilib ketadi va marker UMUMAN
+     topilmaydi. Serverda aynan shunday bo'lgan: ramka 281.0mm da
+     tugagan, pastki markerlar ham 281.0mm dan boshlanadi.
+
+     Markerlar `position: absolute` bo'lgani uchun ular oddiy oqimdagi
+     ramkadan KEYIN chiziladi — shuning uchun oq hoshiya ramka chizig'ini
+     ustidan yopadi. Bu shriftga ham, sozlamaga ham bog'liq emas.
+
+     box-sizing: content-box — rasmning o'zi 7mm bo'lib qolishi SHART
+     (tekshiruvchi markerni shu o'lchamda qidiradi), manfiy siljish esa
+     uni aynan avvalgi joyida ushlab turadi. */
+  .marker {
+    position: absolute;
+    width: 7mm; height: 7mm; display: block;
+    box-sizing: content-box;
+    padding: 1.6mm;
+    background: #ffffff;
+  }
+  .marker.tl { top: -1.6mm; left: -1.6mm; }
+  .marker.tr { top: -1.6mm; right: -1.6mm; }
+  .marker.bl { bottom: -1.6mm; left: -1.6mm; }
+  .marker.br { bottom: -1.6mm; right: -1.6mm; }
+
+  /* ================= sarlavha ================= */
+  /* Chap/o'ng chekkadagi 9mm — yuqori burchak markerlari uchun bo'sh joy.
+     Bu SHART: logotip marker ustiga tushsa, ArUco uni topa olmaydi
+     (sinovda TL markeri aynan shu sababdan topilmagan edi). Marker 7mm +
+     atrofida oq "sokin zona" qolishi kerak. */
+  .top { display: flex; align-items: center; gap: 4mm; padding: 0 9mm; }
+  .top .logo { width: 13mm; flex-shrink: 0; }
+  .title-block { flex: 1; min-width: 0; }
+  .title-block .title { font-size: 5.5mm; font-weight: 800; color: #3B00B4; letter-spacing: .02em; margin: 0; }
+  .title-block .subtitle { font-size: 3mm; color: #6b6690; margin: .8mm 0 0; }
+  .meta { display: flex; flex-direction: column; align-items: flex-end; gap: 1mm; flex-shrink: 0; }
+  .meta-sub { font-size: 2.4mm; color: #999; text-transform: uppercase; letter-spacing: .05em; }
+  .meta-badge { font-size: 2.6mm; font-weight: 700; color: #3B00B4; background: #F2ECFC; padding: .8mm 2.5mm; border-radius: 999px; }
+  .rule { height: .3mm; background: #D9D0EF; margin: 3mm 0 4mm; }
+
+  .section-label { display: flex; align-items: center; gap: 1.5mm; margin: 0 0 2mm; font-size: 2.8mm; font-weight: 700; color: #3B00B4; text-transform: uppercase; letter-spacing: .05em; }
+  .section-label .dot { width: 2mm; height: 2mm; background: #3B00B4; border-radius: .5mm; }
+
+  .info-box { margin: 0 0 4mm; border: .3mm solid #D9D0EF; border-radius: 3mm; padding: 4mm; display: flex; gap: 5mm; }
+  .fields-grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 5mm; }
+  .field { display: flex; flex-direction: column; gap: .8mm; }
+  .flabel { font-size: 2.5mm; font-weight: 700; color: #6b6690; text-transform: uppercase; letter-spacing: .03em; }
+  .fval { border: .3mm solid #ccc; border-radius: 1.5mm; padding: 1.5mm 2mm; font-size: 3.4mm; font-weight: 600; min-height: 6mm; display: flex; align-items: center; background: #FAFAFE; overflow-wrap: anywhere; }
+  /* Orientir matn: PDF matn qatlamida bor, lekin ko'zga ko'rinmaydi.
+     Rang aynan katakcha foni (.fval / .qr-id -> #FAFAFE) bilan bir xil
+     bo'lishi SHART: oq (#fff) bo'lganda bo'sh varaqda "@I@" kabi
+     belgilar xira arvoh bo'lib ko'rinib qolardi. Shtamplashda ustiga
+     qora matn chiziladi, shuning uchun bu rang faqat BO'SH varaqda
+     ahamiyatli. Matn qatlamida qolgani uchun `page.search_for()`
+     baribir topadi. */
+  /* nowrap SHART: orientir uch belgidan iborat ("@K@") va sana
+     katakchasi tor. Shriftga qarab u katakchaga sig'masa,
+     `overflow-wrap: anywhere` uni ikki qatorga bo'lib yuboradi va
+     `page.search_for("@K@")` uni UMUMAN topa olmaydi — shablon
+     tayyorlanmaydi. Bu aynan shunday sodir bo'lgan: Windows'da
+     WeasyPrint 'Noto Sans'ni topmay Lucida Sans Unicode'ga tushadi
+     (torroq) va sig'adi, serverda esa haqiqiy Noto Sans (kengroq)
+     ishlatiladi va sig'may qoladi. */
+  .ph { color: #FAFAFE; white-space: nowrap; }
+  .date-group { display: flex; gap: 1.5mm; }
+  /* 13mm: ichki kenglik 12.4mm. Eng keng orientir ("@O@") Windows
+     shriftida 8.5mm, ya'ni shrift 45% kengroq bo'lsa ham sig'adi —
+     shunda ko'rinmas matn chizilgan katakcha ICHIDA qoladi va
+     extract_field_boxes uni to'g'ri katakcha bilan bog'laydi. */
+  .date-group .date-box { width: 13mm; justify-content: center; text-align: center; padding-left: 0; padding-right: 0; }
+  .date-group .date-box.year { width: 15mm; }
+  .fhint { font-size: 2mm; color: #999; letter-spacing: .04em; margin-top: -.3mm; }
+
+  .qr-box { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 1.5mm; }
+  /* QR o'rni: oq to'rtburchak. PyMuPDF shu rasmning bbox'ini topib
+     (32mm — sahifadagi yagona shunday o'lchamli rasm), ustiga haqiqiy QR
+     kodni qo'yadi. */
+  .qr-box img { width: 32mm; height: 32mm; display: block; }
+  /* Ishtirokchi raqami QR ostida — QR o'qilmay qolsa (dog', bukilgan
+     burchak) operator raqamni QO'LDA kirita oladi. O'zining chizilgan
+     katakchasi bor: shtamplashda matn joyi shu katakcha bo'yicha
+     markazlashtiriladi (qarang: extract_field_boxes). */
+  .qr-id {
+    width: 32mm;
+    min-height: 5.5mm;
+    border: .3mm solid #ccc;
+    border-radius: 1.5mm;
+    background: #FAFAFE;
+    padding: 1mm 1mm;
+    text-align: center;
+    font-size: 2.8mm;
+    font-weight: 700;
+  }
+  .qr-caption { font-size: 2.3mm; color: #6b6690; text-align: center; max-width: 32mm; }
+
+  /* ================= belgilash zonasi =================
+     Balandligi `flex: 1` — sarlavhadan qolgan joyni to'liq egallaydi.
+     Shu sababli sahifa HECH QACHON ikkinchi varaqqa oshmaydi (avval
+     qat'iy 190mm edi va sarlavha bilan qo'shilib 279mm dan oshib
+     ketardi). Doira o'lchami/oraliqlari fan soniga qarab Python'da
+     hisoblanadi (_compute_layout) va pastdagi <style> ga quyiladi. */
+  .marking-area {
+    flex: 1;
+    /* Pastki bo'shliq: ramka pastki burchak markerlariga yaqinlashmasin.
+       Sokin zona (yuqoriga qarang) buni allaqachon kafolatlaydi, bu esa
+       KO'RINISH uchun — ramka bilan marker yopishib turmasin. */
+    margin-bottom: 2mm;
+    border: 1.4mm solid #000;
+    border-radius: 2mm;
+    padding: 3mm;
+    display: flex;
+    gap: 3mm;
+    min-height: 0;
+  }
+  .subject-block {
+    flex: 1;
+    min-width: 0;
+    border: 0.6mm solid #000;
+    border-radius: 1.5mm;
+    padding: 2.5mm;
+  }
+  .subject-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 0.4mm solid #000;
+    padding-bottom: 1.5mm;
+    margin-bottom: 2.5mm;
+    gap: 2mm;
+  }
+  .subject-name { font-size: 3.4mm; font-weight: 700; overflow-wrap: anywhere; }
+  .subject-meta { font-size: 2.3mm; color: #666; white-space: nowrap; }
+  /* Ustunlar blok ichida markazda — bitta fan bo'lganda blok kengligi
+     ustunlarga qaraganda ancha katta bo'lib qoladi va chapga qisilib
+     turishi noqulay ko'rinadi. */
+  .subject-cols { display: flex; justify-content: center; }
+  /* Kengligi inline style bilan (Python hisoblaydi) beriladi va
+     `flex: 0 0 auto` uni qisqartirishga yo'l qo'ymaydi — WeasyPrint aks
+     holda ustunni tarkibidan tor qilib, qo'shni ustunlarni bir-birining
+     ustiga chiqarib yuboradi. */
+  .q-col { display: flex; flex-direction: column; flex: 0 0 auto; }
+  .q-row { display: flex; align-items: center; }
+  /* nowrap: savol raqamini extract_bubble_boxes matn sifatida qidiradi.
+     Raqam ustuni tor (4.2mm), shriftga qarab "200" sig'masa ikki qatorga
+     bo'linib, raqam topilmay qolardi (.ph dagi bilan bir xil sabab). */
+  .q-num { text-align: right; flex-shrink: 0; color: #333; white-space: nowrap; }
+  /* Harf ATAYLAB och kulrang: avtomatik tekshirishda (OMR) doiraning
+     qorong'uligi o'lchanadi va to'ldirilgan/bo'sh farqi shunga qarab
+     aniqlanadi. Harf qora bo'lsa, BO'SH doira ham "biroz qora" bo'lib,
+     bu farqni kamaytiradi va chegara tanlashni qiyinlashtiradi
+     (qarang: DECISIONS.md #29). Chegara (border) qora qoladi — doirani
+     ko'z bilan ham, dastur bilan ham topish uchun kerak. */
+  /* `inline-block` — `inline-flex` EMAS. WeasyPrint'da flex konteyner
+     ichidagi inline-flex element IKKI MARTA chiziladi (chegara kengligicha
+     diagonal siljib), natijada doira "ikkilangan/soyali" bo'lib ko'rinadi.
+     Sinovda aniqlangan: flex ichida inline-flex -> 8 chizma, inline-block
+     -> 4 chizma (4 ta doira uchun). Harf line-height bilan markazlanadi
+     (o'lchami Python'da hisoblanadi). */
+  .bubble {
+    display: inline-block; text-align: center;
+    border: 0.3mm solid #000; border-radius: 50%;
+    flex-shrink: 0; color: #6b7078;
+  }
+
+  .footer-note { margin: 4mm 0 0; font-size: 2.6mm; color: #333; text-align: center; }
+</style>
+<style>
+  /* Fan soniga/variant soniga qarab Python hisoblagan o'lchamlar
+     (services/answer_sheet_service.py -> _compute_layout). */
+  .bubble { width: {{ layout.bubble }}mm; height: {{ layout.bubble }}mm; font-size: {{ layout.bubble_font }}mm; line-height: {{ layout.bubble_line }}mm; }
+  .q-row { gap: {{ layout.hgap }}mm; margin-bottom: {{ layout.vgap }}mm; }
+  .q-row:last-child { margin-bottom: 0; }
+  .q-num { width: {{ layout.num_w }}mm; margin-right: {{ layout.num_gap }}mm; font-size: {{ layout.num_font }}mm; }
+  .subject-cols { gap: {{ layout.col_gap }}mm; }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <img class="marker tl" src="aruco_tl.png" alt="">
+    <img class="marker tr" src="aruco_tr.png" alt="">
+    <img class="marker bl" src="aruco_bl.png" alt="">
+    <img class="marker br" src="aruco_br.png" alt="">
+
+    <div class="top">
+      <img class="logo" src="logo_brend.png" alt="Smart Academy">
+      <div class="title-block">
+        <p class="title">JAVOBLAR VARAQASI</p>
+        <p class="subtitle">{{ event_title }}</p>
+      </div>
+      <div class="meta">
+        <span class="meta-sub">O'quv markazi</span>
+        <span class="meta-badge">{{ subjects|length }} FAN</span>
+      </div>
+    </div>
+    <div class="rule"></div>
+
+    <p class="section-label"><span class="dot"></span>ISHTIROKCHI MA'LUMOTLARI</p>
+    <div class="info-box">
+      <div class="fields-grid">
+        <div class="field">
+          <span class="flabel">Ismi</span>
+          <div class="fval"><span class="ph">@I@</span></div>
+        </div>
+        <div class="field">
+          <span class="flabel">Familiyasi</span>
+          <div class="fval"><span class="ph">@F@</span></div>
+        </div>
+        <div class="field">
+          <span class="flabel">Tug'ilgan sanasi</span>
+          <div class="date-group">
+            <div class="fval date-box"><span class="ph">@K@</span></div>
+            <div class="fval date-box"><span class="ph">@O@</span></div>
+            <div class="fval date-box year"><span class="ph">@Y@</span></div>
+          </div>
+          <span class="fhint">KUN&nbsp;/&nbsp;OY&nbsp;/&nbsp;YIL</span>
+        </div>
+        <div class="field">
+          <span class="flabel">Sinf</span>
+          <div class="fval"><span class="ph">@S@</span></div>
+        </div>
+      </div>
+      <div class="qr-box">
+        <img src="qr_slot.png" alt="QR o'rni">
+        <div class="qr-id"><span class="ph">@ID@</span></div>
+        <span class="qr-caption">Ishtirokchi raqami</span>
+      </div>
+    </div>
+
+    <div class="marking-area">
+      {% for subject in subjects %}
+      <div class="subject-block">
+        <div class="subject-head">
+          <span class="subject-name">{{ subject.name }}</span>
+          <span class="subject-meta">{{ subject.question_count }} savol &middot; {{ subject.letters[0] }}-{{ subject.letters[-1] }}</span>
+        </div>
+        <div class="subject-cols">
+          {% for col in subject.columns %}
+          <div class="q-col" style="width: {{ subject.col_w }}mm">
+            {% for qn in col %}
+            <div class="q-row">
+              <span class="q-num">{{ qn }}</span>
+              {% for letter in subject.letters %}
+              <span class="bubble">{{ letter }}</span>
+              {% endfor %}
+            </div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <p class="footer-note">QR kod maydonini toza saqlang — u avtomatik tekshirishda o'qiladi.</p>
+  </div>
+</body>
+</html>

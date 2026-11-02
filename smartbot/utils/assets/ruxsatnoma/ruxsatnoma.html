@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light">
+<title>Ruxsatnoma</title>
+<style>
+  /*
+   * Sahifa ikki qatlamdan iborat:
+   *   - .blank ichidagi hamma narsa O'ZGARMAS — barcha ruxsatnomada bir xil.
+   *   - .zone ichidagi hamma narsa O'ZGARUVCHI — har o'quvchida boshqacha.
+   * Yangi maydon qo'shsangiz, u albatta .zone ICHIGA tushishi kerak.
+   */
+  @page {
+    size: A5 portrait;
+    margin: 8mm;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    font-family: 'Noto Sans', sans-serif;
+    color: #1C1440;
+  }
+  .ticket {
+    display: flex;
+    flex-direction: column;
+    min-height: 194mm; /* A5 (210mm) - 2*8mm margin */
+  }
+  /* ================= BLANK (o'zgarmas) ================= */
+  .logo-wrap { display: flex; flex-direction: column; align-items: center; padding-top: 4mm; }
+  .logo-wrap img { width: 52mm; height: auto; display: block; }
+  .brand-name {
+    margin: 2mm 0 0;
+    font-size: 4.2mm;
+    font-weight: 700;
+    letter-spacing: .04em;
+    color: #3B00B4;
+  }
+  .brand-rule { height: 1mm; background: #3B00B4; margin: 3mm 6mm 0; }
+
+  .title-block { text-align: center; padding: 4mm 6mm 0; }
+  .title-block .kind {
+    font-size: 6.5mm;
+    font-weight: 800;
+    letter-spacing: .03em;
+    color: #3B00B4;
+    margin: 0;
+  }
+  .title-block .event { font-size: 4mm; margin: 1.5mm 0 0; }
+
+  /* Manzil ikki qatorda (Manzil / Mo'ljal) — shuning uchun bu yerdagi
+     bo'shliqlar qisqartirilgan: A5 sahifada bosiladigan maydon 194mm va
+     tarkib unga JUDA tiqilinch sig'adi (o'lchandi: ~191mm). Bu qiymatlarni
+     oshirsangiz ruxsatnoma ikkinchi sahifaga tushib ketadi. */
+  .footer {
+    margin-top: auto;
+    padding: 1.5mm 6mm 0;
+    font-size: 3mm;
+    color: #6b6690;
+    text-align: center;
+    line-height: 1.5;
+  }
+  .footer .sig {
+    margin: 2.5mm auto 0;
+    width: 55mm;
+    border-top: 0.3mm solid #D9D0EF;
+    padding-top: 1.5mm;
+  }
+
+  /* ================= ZONE (o'zgaruvchi) ================= */
+  .zone-wrap { margin-top: 6mm; position: relative; }
+  .perforation {
+    position: relative;
+    border-top: 0.6mm dashed #3B00B4;
+    margin: 0 6mm;
+  }
+  .perforation::before, .perforation::after {
+    content: "";
+    position: absolute;
+    top: -3mm;
+    width: 6mm;
+    height: 6mm;
+    background: white;
+    border-radius: 50%;
+  }
+  .perforation::before { left: -9mm; }
+  .perforation::after { right: -9mm; }
+
+  .zone {
+    background: #F2ECFC;
+    margin: 0 6mm;
+    padding: 5mm 5mm 4mm;
+    display: flex;
+    gap: 4mm;
+    border-radius: 0 0 3mm 3mm;
+    height: 75mm;      /* QAT'IY: ism/familiya qanday uzunlikda bo'lmasin o'zgarmaydi */
+    overflow: hidden;  /* ehtiyot chorasi -- nazariy chegaradan chiqsa ham tashqariga toshmaydi */
+  }
+  .names {
+    flex: 1;
+    min-width: 0;      /* overflow-wrap to'g'ri ishlashi uchun shart */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .side {
+    width: 40mm;
+    flex-shrink: 0;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .field-label {
+    font-size: 2.6mm;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #8177ab;
+    margin: 0 0 0.8mm;
+  }
+  .field-value {
+    font-weight: 700;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.12;
+    margin: 0;
+  }
+  /* Ism/familiya uzunligiga qarab hajm darajasi (utils/qr_payload.py bilan
+     bog'liq emas -- bu sof ko'rinish masalasi, services/ticket_service.py
+     da hisoblanadi). Har darajada ham matn 2 qatordan oshmaydi -- shuning
+     uchun .zone balandligi hech qachon buzilmaydi. */
+  .names.sz1 .field-value { font-size: 7.5mm; }
+  .names.sz2 .field-value { font-size: 6.2mm; }
+  .names.sz3 .field-value { font-size: 5mm; }
+  .names.sz4 .field-value { font-size: 4mm; }
+
+  .issued { font-size: 3mm; color: #6b6690; margin: 0; }
+
+  .qr-img { width: 32mm; height: 32mm; display: block; }
+  .id-pill {
+    background: #3B00B4;
+    color: white;
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    font-size: 3.2mm;
+    padding: 1.2mm 2mm;
+    border-radius: 1.5mm;
+    letter-spacing: .02em;
+  }
+  .qr-id { font-size: 3.4mm; font-weight: 700; margin: 0; }
+</style>
+</head>
+<body>
+  <div class="ticket">
+
+    <div class="logo-wrap">
+      <img src="logo_brend.png" alt="Smart Academy">
+      <p class="brand-name">Smart Academy</p>
+    </div>
+    <div class="brand-rule"></div>
+
+    <div class="title-block">
+      <p class="kind">RUXSATNOMA</p>
+      <p class="event">{{ r.event_title }}</p>
+    </div>
+
+    <div class="zone-wrap">
+      <div class="perforation"></div>
+      <div class="zone">
+        <div class="names {{ r.name_size_class }}">
+          <div>
+            <p class="field-label">Familiya</p>
+            <p class="field-value">{{ r.familiya }}</p>
+          </div>
+          <div>
+            <p class="field-label">Ism</p>
+            <p class="field-value">{{ r.ism }}</p>
+          </div>
+          <p class="issued">Berilgan vaqt: {{ r.issued_at }}</p>
+        </div>
+        <div class="side">
+          <img class="qr-img" src="{{ r.qr_data_uri }}" alt="QR">
+          <div>
+            <p class="field-label">Ishtirokchi raqami</p>
+            <div class="id-pill">{{ r.ticket_no }}</div>
+          </div>
+          <div>
+            <p class="field-label">Telefon</p>
+            <p class="qr-id">{{ r.phone }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Manzil: Asaka tuman, Asaka shaxar<br>
+      Mo'ljal: Dexqon bozori oldida, korzinkadan 50+ metr zavot tomonga
+      <div class="sig">Nazoratchi imzosi</div>
+    </div>
+
+  </div>
+</body>
+</html>

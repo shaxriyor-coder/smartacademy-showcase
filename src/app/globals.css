@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0d0930;
+  --foreground: #f4f2ff;
+}
+
+/* the whole app is dark-only, so tell the browser to render native controls
+   (select/option popups, date pickers, checkboxes, scrollbars) with dark,
+   readable colors instead of assuming a light UI */
+html {
+  color-scheme: dark;
+}
+
+::selection {
+  background: rgba(244, 242, 255, 0.85);
+  color: #150e33;
+}
+
+/* every native <select> popup and <input type="date"> picker in the app is
+   themed the same way, regardless of which utility classes the control
+   carries, so filter bars and the pagination "sahifada" picker match too */
+select {
+  color-scheme: dark;
+}
+option {
+  background-color: #1a1246;
+  color: #f4f2ff;
+}
+input[type="date"] {
+  color-scheme: dark;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+@theme inline {
+  --color-ink: #0d0930;
+  --color-indigo: #3a0fcf;
+  --color-glow: #6b3ff5;
+  --color-gold: #f2b035;
+  --color-gold-ink: #241505;
+  --color-ivory: #f4f2ff;
+  --color-muted: #a79fd6;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), "Segoe UI", system-ui, sans-serif;
+  min-height: 100dvh;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display), "Segoe UI", system-ui, sans-serif;
+}
+
+/* fixed aurora backdrop: slow-drifting indigo/gold blobs behind every page */
+.aurora-bg {
+  position: fixed;
+  inset: -10%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(46% 38% at 12% 8%, rgba(107, 63, 245, 0.5), transparent 60%),
+    radial-gradient(40% 34% at 88% 14%, rgba(242, 176, 53, 0.14), transparent 60%),
+    radial-gradient(55% 45% at 60% 95%, rgba(58, 15, 207, 0.6), transparent 60%);
+  filter: blur(10px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .aurora-bg {
+    animation: aurora-drift 26s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes aurora-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-2%, 2%, 0) scale(1.05);
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply rounded-2xl border border-white/10 bg-white/[0.055] backdrop-blur-xl;
+  }
+  .glass-panel-strong {
+    @apply rounded-2xl border border-white/10 bg-white/[0.09] backdrop-blur-xl;
+  }
+  .glass-bar {
+    @apply border-white/10 bg-[#0d0930]/55 backdrop-blur-xl;
+  }
+
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-4 py-2.5 text-sm font-bold text-gold-ink transition hover:brightness-110 disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-ivory transition hover:bg-white/[0.12] disabled:opacity-50;
+  }
+  .btn-danger-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/20;
+  }
+
+  .input-field {
+    @apply w-full rounded-lg border border-white/15 bg-white/[0.05] px-3 py-2 text-sm text-ivory placeholder:text-muted/70 focus:border-gold/60 focus:outline-none;
+  }
+  .input-field option {
+    @apply bg-[#1a1246] text-ivory;
+  }
+  .label-field {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted;
+  }
+
+  .pill {
+    @apply cursor-pointer rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-white/15 text-muted transition hover:text-ivory hover:ring-white/30;
+  }
+  .pill.is-active {
+    @apply bg-white/80 text-[#150e33] ring-white/70 backdrop-blur-md;
+  }
+
+  .tag {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold;
+  }
+  .tag-gold {
+    @apply bg-gold/15 text-gold;
+  }
+  .tag-glow {
+    @apply bg-glow/25 text-[#cbbbff];
+  }
+}

@@ -1,0 +1,382 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Xodim rollari — smartbot'dagi superadmin / admin / teacher bilan bir xil
+// ma'noda (docs/DECISIONS.md #20). Guruhlar faqat TEACHER'niki; adminlar
+// markazni tahlil sahifalari orqali ko'radi.
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  TEACHER
+}
+
+enum Focus {
+  ABITURIENT
+  PMT
+}
+
+model User {
+  id             String      @id @default(cuid())
+  name           String
+  // Telegram orqali kiradigan xodimda (roli smartbot'dan, docs/DECISIONS.md
+  // #23) email va parol bo'lmaydi — ular faqat saytga email bilan kirish uchun.
+  email          String?     @unique
+  passwordHash   String?
+  role           Role
+  // Admin/SuperAdmin o'qituvchi ishini ham qiladi (markaz egasi o'zi dars
+  // beradi): roli o'zgarmaydi, lekin guruh ochish va topshiriq biriktirish
+  // ochiladi. SuperAdmin Xodimlar sahifasida beradi — docs/DECISIONS.md #30.
+  canTeach       Boolean     @default(false)
+  telegramChatId String?     @unique
+  createdAt      DateTime    @default(now())
+  questions      Question[]  @relation("QuestionCreatedBy")
+  tests          Test[]
+  loginOtps      LoginOtp[]
+  classrooms     Classroom[]
+  assignments    Assignment[]
+  students       Student[]
+}
+
+// A short-lived one-time code sent over Telegram as a second factor after
+// the password check succeeds — see src/lib/otp.ts. One row per login
+// attempt; `attempts` caps how many wrong codes can be tried before the
+// admin has to restart from the password step.
+model LoginOtp {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Subject {
+  id               String            @id @default(cuid())
+  name             String            @unique
+  themes           Theme[]
+  difficultyLevels DifficultyLevel[]
+  questions        Question[]
+  tests            Test[]
+  classrooms       Classroom[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model Theme {
+  id        String     @id @default(cuid())
+  name      String
+  subjectId String
+  subject   Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subThemes SubTheme[]
+  questions Question[] @relation("QuestionThemes")
+  createdAt DateTime   @default(now())
+
+  @@unique([subjectId, name])
+}
+
+model SubTheme {
+  id        String     @id @default(cuid())
+  name      String
+  themeId   String
+  theme     Theme      @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  questions Question[] @relation("QuestionSubThemes")
+  createdAt DateTime   @default(now())
+
+  @@unique([themeId, name])
+}
+
+model DifficultyLevel {
+  id        String     @id @default(cuid())
+  name      String
+  order     Int
+  subjectId String
+  subject   Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@unique([subjectId, name])
+}
+
+model Skill {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  questions Question[] @relation("QuestionSkills")
+}
+
+model Question {
+  id            String          @id @default(cuid())
+  subjectId     String
+  subject       Subject         @relation(fields: [subjectId], references: [id])
+  text          String
+  imageUrl      String?
+  correctAnswer String
+  wrongAnswers  String[]
+  themes        Theme[]         @relation("QuestionThemes")
+  subThemes     SubTheme[]      @relation("QuestionSubThemes")
+  difficultyId  String
+  difficulty    DifficultyLevel @relation(fields: [difficultyId], references: [id])
+  focus         Focus
+  skills        Skill[]         @relation("QuestionSkills")
+  createdById   String
+  createdBy     User            @relation("QuestionCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Test {
+  id           String   @id @default(cuid())
+  title        String
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id])
+  createdById  String
+  createdBy    User     @relation(fields: [createdById], references: [id])
+  questionIds  String[]
+  isOlympiad   Boolean  @default(false)
+  // Olimpiadalar smartbot'da yaratiladi: platforma ularni faqat o'qiydi va
+  // testga tanlangan olimpiadaning id'si va nomini yozib qo'yadi
+  // (docs/DECISIONS.md #31). Eski yozuvlarda id yo'q — nomi qo'lda yozilgan.
+  olympiadName String?
+  smartbotOlympiadId Int?
+  // Chop etilgan varaqning kaliti (savollar tartibida) va varaqdagi
+  // variantlar soni. Test tuzilganda yoziladi, Word eksportida yangilanadi;
+  // smartbot javob varag'ini shu ikkisidan sozlaydi (docs/DECISIONS.md #32).
+  answerKey    String[]
+  choiceCount  Int?
+  createdAt    DateTime @default(now())
+  assignments  Assignment[]
+}
+
+// --- Classroom (1-bosqich, yangi qism) ----------------------------------
+//
+// Ikki eski loyihani ("smartbot" — Telegram bot, "Test Maker" — savollar
+// banki) birlashtiruvchi markaziy tushuncha. O'qituvchi filtr orqali test
+// yig'adi, uni Classroom'ga biriktiradi (keyingi bosqich), o'quvchilar
+// online yoki offline (bosma + OMR) topshiradi, natija shu Classroom'ga
+// yozilib boradi. Bu fayl faqat poydevorni — Student identifikatsiyasi va
+// Classroom/a'zolikni — o'z ichiga oladi.
+
+// O'quvchi — o'qituvchi guruh ro'yxatiga kiritadigan bola. Telegram akkaunt
+// EMAS: bitta ota-ona akkauntiga bir nechta farzand ulanadi, bola esa
+// Telegram'siz ham bo'lishi mumkin — varaq chop etish uchun faqat ism kerak.
+// Akkaunt bilan bog'lanish StudentTelegramLink orqali, o'qituvchi bergan
+// `linkCode` bilan.
+model Student {
+  id            String                @id @default(cuid())
+  firstName     String
+  lastName      String?
+  birthDate     DateTime?             @db.Date
+  // Erkin matn ("7-A", "10") — javob varag'idagi "Sinf" katakchasiga shu yoziladi.
+  grade         String?
+  // Ota-ona yoki o'quvchi o'z Telegram akkauntini shu kod bilan ulaydi
+  // (src/lib/link-code.ts). Taxmin qilib topib bo'lmaydigan uzunlikda.
+  linkCode      String                @unique
+  createdById   String?
+  createdBy     User?                 @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime              @default(now())
+  memberships   ClassroomMember[]
+  telegramLinks StudentTelegramLink[]
+  sheets        AssignmentSheet[]
+}
+
+// Telegram Login Widget orqali kiradigan akkaunt — o'quvchining o'zi yoki
+// ota-onasi. `User`ga ATAYLAB qo'shilmagan: u yerda email/passwordHash
+// majburiy, bu esa parolsiz kiradi. Alohida jadval bo'lgani uchun
+// requireSession() (admin yo'llari) bu sessiyani tuzilma darajasida qabul
+// qilmaydi.
+model TelegramAccount {
+  id          String                @id // Telegram foydalanuvchi ID'si (raqam, String sifatida — BigInt/JSON muammosidan qochish uchun)
+  firstName   String
+  lastName    String?
+  username    String?
+  photoUrl    String?
+  lastLoginAt DateTime
+  createdAt   DateTime              @default(now())
+  students    StudentTelegramLink[]
+  // Telegram xabarlari (src/lib/notifications.ts): botga /stop — o'chiradi,
+  // /start — yoqadi. botUnreachableAt — bot bu akkauntga yoza olmadi (bloklagan
+  // yoki botni hech ishga tushirmagan); akkaunt botga yozganda tozalanadi.
+  notifyEnabled    Boolean   @default(true)
+  botUnreachableAt DateTime?
+}
+
+model StudentTelegramLink {
+  id                String          @id @default(cuid())
+  studentId         String
+  student           Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  telegramAccountId String
+  telegramAccount   TelegramAccount @relation(fields: [telegramAccountId], references: [id], onDelete: Cascade)
+  linkedAt          DateTime        @default(now())
+
+  @@unique([studentId, telegramAccountId])
+  @@index([telegramAccountId])
+}
+
+model Classroom {
+  id          String            @id @default(cuid())
+  name        String
+  subjectId   String?
+  subject     Subject?          @relation(fields: [subjectId], references: [id])
+  teacherId   String
+  teacher     User              @relation(fields: [teacherId], references: [id])
+  // Test/OnlineTest'dagi kabi: o'chirilganda yozuv o'chmaydi, shu bayroq
+  // qo'yiladi — o'quvchilarning progress tarixi yo'qolmasligi uchun.
+  archived    Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  members     ClassroomMember[]
+  assignments Assignment[]
+}
+
+model ClassroomMember {
+  id          String    @id @default(cuid())
+  classroomId String
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     Student   @relation(fields: [studentId], references: [id])
+  joinedAt    DateTime  @default(now())
+
+  @@unique([classroomId, studentId])
+}
+
+enum AssignmentMode {
+  OFFLINE
+  ONLINE
+}
+
+// Online testda o'quvchi to'g'ri javoblarni qachon ko'radi. Ball har doim
+// topshirgandan keyin ko'rinadi; offline topshiriqlar IMMEDIATELY.
+enum RevealPolicy {
+  IMMEDIATELY
+  AFTER_CLOSE
+  NEVER
+}
+
+// Guruhga biriktirilgan test. Yaratilgan paytda MUZLATILADI: savollar tartibi
+// va javob kaliti shu yerga ko'chiriladi. Keyin Test yoki savollar
+// tahrirlansa ham chop etilgan varaqlar va mavjud natijalar jimgina
+// buzilmaydi (smartbot DECISIONS.md #2 dagi "yechilgan testning kaliti
+// o'zgarmaydi" qoidasi).
+model Assignment {
+  id               String            @id @default(cuid())
+  // Javob varag'idagi ticket_no ichiga tushadigan qisqa raqam: kod "CR{seq}".
+  seq              Int               @unique @default(autoincrement())
+  classroomId      String
+  classroom        Classroom         @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  testId           String
+  test             Test              @relation(fields: [testId], references: [id], onDelete: Restrict)
+  title            String
+  mode             AssignmentMode    @default(OFFLINE)
+  subjectName      String
+  questionIds      String[]
+  // Savollar tartibida: "A".."E". Variantlar tartibi Word eksportidagi bilan
+  // bir xil seed'dan chiqadi (src/lib/answer-key.ts).
+  answerKey        String[]
+  createdById      String
+  createdBy        User              @relation(fields: [createdById], references: [id])
+  createdAt        DateTime          @default(now())
+  archived         Boolean           @default(false)
+  // Online rejim (offline topshiriqda ishlatilmaydi). opensAt bo'sh — darhol
+  // ochiq, closesAt bo'sh — muddatsiz. Vaqt chegarasi boshlagan paytdan
+  // hisoblanadi va closesAt dan oshmaydi (src/lib/online-core.ts).
+  opensAt          DateTime?
+  closesAt         DateTime?
+  timeLimitMinutes Int?
+  // Har o'quvchiga savollar va variantlar tartibi alohida — ko'chirishga qarshi.
+  shuffle          Boolean           @default(false)
+  revealAnswers    RevealPolicy      @default(IMMEDIATELY)
+  // Checker servisi chizgan bo'sh shablon va uning koordinatalari. Birinchi
+  // marta varaq chiqarilganda yaratiladi va SHU TOPSHIRIQ uchun hech qachon
+  // qayta chizilmaydi: qog'ozga chop etilgan varaqlar aynan shu
+  // koordinatalar bilan tekshiriladi (smartbot DECISIONS.md #37).
+  sheetBlankPdf    Bytes?
+  sheetFieldBoxes  String?
+  sheetBubbleBoxes String?
+  // O'qituvchiga "test yopildi" xulosasi navbatga qo'yilgan payt. Yopilish
+  // vaqti o'zgarsa tozalanadi.
+  summarySentAt    DateTime?
+  sheets           AssignmentSheet[]
+  notifications    Notification[]
+
+  @@index([classroomId])
+}
+
+// Bitta o'quvchining bitta topshiriqdagi varag'i va natijasi. ticket_no
+// varaqdagi QR ichida — skan qaysi o'quvchiniki ekani shundan aniqlanadi.
+model AssignmentSheet {
+  id           String     @id @default(cuid())
+  seq          Int        @unique @default(autoincrement())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      Student    @relation(fields: [studentId], references: [id])
+  ticketNo     String     @unique
+  // Savollar tartibida o'qilgan javob: "A".."E", "" — bo'sh, "*" — bir
+  // nechta doira bo'yalgan. Mavzu bo'yicha tahlil shu va
+  // Assignment.questionIds orqali hisoblanadi.
+  answers      String[]
+  // Online: urinish boshlangan vaqt. checkedAt ikkala rejimda ham baholangan
+  // payt — online'da topshirilgan (yoki vaqt tugagan) payt.
+  startedAt    DateTime?
+  correct      Int?
+  total        Int?
+  percentage   Float?
+  checkedAt    DateTime?
+  createdAt    DateTime   @default(now())
+  // Telegram xabarlari navbatga qo'yilgan paytlar: natija (reset tozalaydi —
+  // qayta tekshirilgan natija yana yuboriladi) va yangi online test haqida.
+  resultNotifiedAt DateTime?
+  announcedAt      DateTime?
+  notifications    Notification[]
+
+  @@unique([assignmentId, studentId])
+  @@index([studentId])
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  SKIPPED
+  FAILED
+}
+
+// Telegram xabarlari navbati (outbox). Bot jarayoni (scripts/telegram-bot.ts)
+// har aylanishda voqealarni shu yerga yozadi va yuboradi
+// (src/lib/notifications.ts). dedupeKey bitta voqea bitta chatga ikki marta
+// ketmasligini kafolatlaydi.
+model Notification {
+  id           String             @id @default(cuid())
+  chatId       String
+  kind         String
+  dedupeKey    String             @unique
+  text         String
+  buttonText   String?
+  buttonUrl    String?
+  buttonWebApp Boolean            @default(false)
+  sheetId      String?
+  sheet        AssignmentSheet?   @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  assignmentId String?
+  assignment   Assignment?        @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  status       NotificationStatus @default(PENDING)
+  attempts     Int                @default(0)
+  lastError    String?
+  sendAfter    DateTime           @default(now())
+  sentAt       DateTime?
+  createdAt    DateTime           @default(now())
+
+  @@index([status, sendAfter])
+  @@index([chatId])
+}
+
+// Haftalik/oylik hisobot davri navbatga qo'yilgani (src/lib/reports.ts).
+// "installed" qatori — hisobotlar yoqilgan payt: undan oldin tugagan davr
+// uchun hisobot yuborilmaydi.
+model ReportRun {
+  id        String   @id @default(cuid())
+  periodKey String   @unique
+  createdAt DateTime @default(now())
+}

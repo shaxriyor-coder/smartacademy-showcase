@@ -1,0 +1,17 @@
+# Example systemd unit for the Telegram bot.
+[Unit]
+Description=SmartAcademy Telegram bot (smartbot, Open App bilan)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+User=smartacademy
+WorkingDirectory=/opt/smartacademy/smartbot
+ExecStart=/opt/smartacademy/smartbot/.venv/bin/python bot.py
+Restart=always
+RestartSec=5
+# smartbot/docs/SERVER.md: o'chirilmasin — xotira oshsa faqat bot qayta ishga tushadi.
+MemoryMax=700M
+
+[Install]
+WantedBy=multi-user.target
